@@ -17,6 +17,16 @@ from fastapi.responses import StreamingResponse
 
 SYNTHETIC_TOOL_NAME = "emit_answer"
 
+# 这些 finishReason 属于“上游主动终止/过滤”，继续续写只会重复被拦，应立即收尾
+TERMINAL_FINISH_REASONS = {
+    "SAFETY",
+    "PROHIBITED_CONTENT",
+    "BLOCKLIST",
+    "RECITATION",
+    "IMAGE_SAFETY",
+    "SPII",
+}
+
 SYNTHETIC_TOOL_DECLARATION = {
     "name": SYNTHETIC_TOOL_NAME,
     "description": (
@@ -364,6 +374,8 @@ class AntiTruncationStreamProcessor:
             # 收集已实时透传给客户端的普通文本（供续传历史 / 异常抢救使用）
             side_buffer = io.StringIO()
             last_finish_reason: Optional[str] = None
+            # 上游终止/过滤原因（SAFETY 等）：命中后不再续写
+            terminal_reason: Optional[str] = None
             # finishReason 是否已透传给客户端（避免收尾时重复补发）
             finish_reason_forwarded = False
 
@@ -452,6 +464,14 @@ class AntiTruncationStreamProcessor:
                         except (json.JSONDecodeError, ValueError):
                             yield line
                             continue
+
+                        # 记录上游终止/过滤原因（SAFETY / PROHIBITED_CONTENT / ...）
+                        prompt_feedback = data.get("promptFeedback")
+                        if isinstance(prompt_feedback, dict) and prompt_feedback.get("blockReason"):
+                            terminal_reason = str(prompt_feedback.get("blockReason"))
+                        chunk_finish_preview = self._get_finish_reason(data)
+                        if chunk_finish_preview in TERMINAL_FINISH_REASONS:
+                            terminal_reason = chunk_finish_preview
 
                         # 提取合成工具内容和真实工具调用
                         synthetic_content, real_calls, chunk_has_synthetic = (
@@ -582,6 +602,19 @@ class AntiTruncationStreamProcessor:
                 if side_text:
                     # 有普通文本：已实时透传给客户端，无需再补发
                     self._append_content(side_text)
+
+                # 上游因安全策略终止：续写只会再次被拦，直接收尾并保留状态
+                if terminal_reason:
+                    print(
+                        f"Anti-truncation: terminal finishReason={terminal_reason}, "
+                        f"stop retrying (text length: {len(side_text)})",
+                        flush=True,
+                    )
+                    if not finish_reason_forwarded:
+                        yield self._build_finish_reason_chunk(terminal_reason)
+                    self._clear_content()
+                    yield b"data: [DONE]\n\n"
+                    return
 
                 # 触发续传
                 if self.current_attempt < self.max_attempts:

@@ -57,6 +57,27 @@ AISTUDIO_MAX_RETRIES=2
 
 Key 保存在服务端 `creds/aistudio_keys.json`（权限 0600，仅返回打码值），运行时只使用这里启用的 Key；某个 Key 返回 401/403/`API_KEY_INVALID` 时会自动标记异常并切换到下一个，最多尝试 3 个。没有任何可用 Key 时接口返回 `503`，不提供服务。
 
+### 空输出与被拦截
+
+当 AI Studio 没有返回任何内容（例如 `promptFeedback.blockReason = PROHIBITED_CONTENT`，或 `finishReason` 为 `SAFETY` / `BLOCKLIST` / `RECITATION`），代理不会返回空响应，而是返回 HTTP 400 并附带上游状态，便于客户端和日志定位：
+
+```json
+{
+  "error": {
+    "code": 400,
+    "message": "AI Studio 未返回任何内容：PROHIBITED_CONTENT（内容属于 AI Studio 禁止生成的类型）",
+    "status": "FAILED_PRECONDITION"
+  },
+  "aistudio": {
+    "promptFeedback": {"blockReason": "PROHIBITED_CONTENT"},
+    "blockReason": "PROHIBITED_CONTENT",
+    "modelVersion": "gemini-3.5-flash-lite"
+  }
+}
+```
+
+流式与非流式行为一致；抗截断遇到这类终止原因会立即收尾，不再做无效的续写重试。
+
 ### 端点
 
 与 GeminiCLI 完全一致，客户端无需区分上游：
