@@ -1030,6 +1030,7 @@
                 <button class="tab" onclick="switchTab('upload')">批量上传</button>
                 <button class="tab" onclick="switchTab('manage')">GCLI凭证</button>
                 <button class="tab" onclick="switchTab('antigravity-manage')">AG凭证</button>
+                <button class="tab" onclick="switchTab('aistudio-manage')">AI Studio</button>
                 <button class="tab" onclick="switchTab('config')">配置管理</button>
                 <button class="tab" onclick="switchTab('logs')">实时日志</button>
                 <button class="tab" onclick="switchTab('about')">项目信息</button>
@@ -1672,6 +1673,56 @@
                 </div>
             </div>
 
+            <!-- AI Studio 标签页 -->
+            <div id="aistudio-manageTab" class="tab-content">
+                <h3>AI Studio API Key 管理</h3>
+                <p>Google AI Studio（generativelanguage.googleapis.com）的 API Key 池。运行时优先使用这里的 Key，环境变量 AISTUDIO_API_KEY 作为兜底。</p>
+
+                <div class="status info" style="margin-bottom: 16px;">
+                    <strong>当前模型：</strong><code id="aistudioModelName">-</code>
+                    <span style="margin-left:16px;color:#666;">接口地址：</span><code id="aistudioBaseUrl">-</code>
+                    <div id="aistudioEnvKeyLine" style="margin-top:6px;color:#666;"></div>
+                </div>
+
+                <div class="stats-container">
+                    <div class="stat-item total">
+                        <span class="stat-number" id="aistudioStatTotal">0</span>
+                        <span class="stat-label">总计</span>
+                    </div>
+                    <div class="stat-item normal">
+                        <span class="stat-number" id="aistudioStatEnabled">0</span>
+                        <span class="stat-label">启用</span>
+                    </div>
+                    <div class="stat-item disabled">
+                        <span class="stat-number" id="aistudioStatDisabled">0</span>
+                        <span class="stat-label">禁用</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="aistudioKeysInput"><strong>添加 API Key</strong>（每行一个，也支持逗号/分号分隔）</label>
+                    <textarea id="aistudioKeysInput" rows="4" placeholder="AIza..." style="width:100%;box-sizing:border-box;font-family:monospace;padding:10px;border:1px solid #ccc;border-radius:6px;"></textarea>
+                    <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+                        <input id="aistudioLabelInput" type="text" placeholder="备注（可选，如：主账号）" style="padding:8px;border:1px solid #ccc;border-radius:6px;min-width:220px;">
+                        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;">
+                            <input type="checkbox" id="aistudioVerifyCheckbox" checked> 添加后立即验证
+                        </label>
+                        <button class="btn" id="aistudioAddBtn" onclick="addAistudioKeys()">添加</button>
+                    </div>
+                </div>
+
+                <div class="manage-actions">
+                    <button class="refresh-btn" onclick="loadAistudioKeys()">刷新</button>
+                    <button class="download-all-btn" onclick="testAllAistudioKeys()">测试全部</button>
+                </div>
+
+                <div id="aistudioKeysMessage" class="status" style="display:none;"></div>
+
+                <div id="aistudioKeysListSection">
+                    <div class="loading" id="aistudioKeysLoading" style="display:none;">正在加载...</div>
+                    <div id="aistudioKeysList"></div>
+                </div>
+            </div>
             <div id="configTab" class="tab-content">
                 <h3>配置管理</h3>
                 <p>管理系统配置参数，修改后立即生效</p>

@@ -48,6 +48,16 @@ AISTUDIO_MAX_RETRIES=2
 
 > AI Studio 不接受以 model turn 结尾的请求（`Requests ending with a model turn are not supported`），因此抗截断使用「续写提示」模式而非 prefill 模式。
 
+### 在 Web 面板里管理 API Key
+
+打开控制面板（`http://<host>:<port>/`，用 `PANEL_PASSWORD` / `API_PASSWORD` 登录），切换到 **AI Studio** 标签页：
+
+- **批量添加**：每行一个 Key（也支持逗号/分号分隔），可填备注；勾选「添加后立即验证」会调用 ListModels 校验并记录结果
+- **测试 / 测试全部**：单独或批量验证 Key 是否可用，显示耗时与错误信息
+- **启用 / 禁用 / 删除**：运行时只会从启用的 Key 中挑选
+
+Key 保存在服务端 `creds/aistudio_keys.json`（权限 0600，仅返回打码值），面板管理的 Key 优先于环境变量 `AISTUDIO_API_KEY`；某个 Key 返回 401/403/`API_KEY_INVALID` 时会自动标记异常并切换到下一个，最多尝试 3 个。
+
 ### 端点
 
 与 GeminiCLI 完全一致，客户端无需区分上游：

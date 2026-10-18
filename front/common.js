@@ -1019,6 +1019,7 @@ function switchTab(tabName) {
 
 // 标签页数据加载（从动画中分离出来）
 function triggerTabDataLoad(tabName) {
+    if (tabName === 'aistudio-manage') loadAistudioKeys();
     if (tabName === 'manage') AppState.creds.refresh();
     if (tabName === 'antigravity-manage') AppState.antigravityCreds.refresh();
     if (tabName === 'config') loadConfig();
@@ -3148,4 +3149,187 @@ document.addEventListener('DOMContentLoaded', function () {
 function autoSetKeepaliveUrl() {
     const url = `${window.location.protocol}//${window.location.host}`;
     document.getElementById('keepaliveUrl').value = url;
+}
+
+
+// =====================================================================
+// AI Studio API Key 管理
+// =====================================================================
+function formatAistudioTime(ts) {
+    if (!ts) return '-';
+    try { return new Date(ts * 1000).toLocaleString(); } catch (e) { return '-'; }
+}
+
+function aistudioBadge(item) {
+    if (!item.enabled) return '<span class="status-badge disabled">已禁用</span>';
+    if (item.status === 'ok') return '<span class="status-badge enabled">正常</span>';
+    if (item.status === 'error') return '<span class="status-badge" style="background:#f8d7da;color:#721c24;">异常</span>';
+    return '<span class="status-badge" style="background:#e2e3e5;color:#383d41;">未测试</span>';
+}
+
+function showAistudioMessage(text, type) {
+    const el = document.getElementById('aistudioKeysMessage');
+    if (!el) return;
+    el.className = 'status ' + (type || 'info');
+    el.textContent = text;
+    el.style.display = 'block';
+    if (showAistudioMessage._timer) clearTimeout(showAistudioMessage._timer);
+    showAistudioMessage._timer = setTimeout(function () { el.style.display = 'none'; }, 8000);
+}
+
+async function aistudioApi(path, options) {
+    const opts = Object.assign({ headers: getAuthHeaders() }, options || {});
+    const resp = await fetch('./aistudio' + path, opts);
+    let data = {};
+    try { data = await resp.json(); } catch (e) { data = {}; }
+    if (!resp.ok) throw new Error(data.detail || ('HTTP ' + resp.status));
+    return data;
+}
+
+function renderAistudioKeys(data) {
+    const stats = data.stats || {};
+    const setText = function (id, value) { const el = document.getElementById(id); if (el) el.textContent = value; };
+    setText('aistudioStatTotal', stats.total || 0);
+    setText('aistudioStatEnabled', stats.enabled || 0);
+    setText('aistudioStatDisabled', stats.disabled || 0);
+    setText('aistudioModelName', data.model || '-');
+    setText('aistudioBaseUrl', data.base_url || '-');
+
+    const envLine = document.getElementById('aistudioEnvKeyLine');
+    if (envLine) {
+        if (data.env_key) {
+            envLine.innerHTML = '环境变量兜底 Key：<code>' + escapeHtml(data.env_key.masked) + '</code>（面板中没有可用 Key 时使用）';
+        } else {
+            envLine.textContent = '环境变量 AISTUDIO_API_KEY 未配置';
+        }
+    }
+
+    const list = document.getElementById('aistudioKeysList');
+    if (!list) return;
+    const items = data.items || [];
+    if (!items.length) {
+        list.innerHTML = '<div class="loading">还没有添加 API Key，请在上方粘贴后点击“添加”。</div>';
+        return;
+    }
+
+    list.innerHTML = items.map(function (item) {
+        const label = item.label ? ' <span style="color:#666;font-size:12px;">(' + escapeHtml(item.label) + ')</span>' : '';
+        const error = item.last_error
+            ? '<div class="error-codes">最近错误：' + escapeHtml(item.last_error) + '</div>'
+            : '';
+        return '<div class="cred-card ' + (item.enabled ? '' : 'disabled') + '">' +
+            '<div class="cred-header">' +
+                '<span class="cred-filename">' + escapeHtml(item.masked) + label + '</span>' +
+                '<span class="cred-status">' + aistudioBadge(item) + '</span>' +
+            '</div>' +
+            '<div class="cred-details">' +
+                '<div>最近使用：' + formatAistudioTime(item.last_used) + '　最近检测：' + formatAistudioTime(item.last_checked) + '</div>' +
+                error +
+            '</div>' +
+            '<div class="cred-actions">' +
+                '<button class="cred-btn" onclick="testAistudioKey(\'' + item.id + '\')">测试</button>' +
+                '<button class="cred-btn" onclick="toggleAistudioKey(\'' + item.id + '\', ' + (item.enabled ? 'false' : 'true') + ')">' + (item.enabled ? '禁用' : '启用') + '</button>' +
+                '<button class="cred-btn" style="background:#dc3545;" onclick="deleteAistudioKey(\'' + item.id + '\')">删除</button>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+async function loadAistudioKeys() {
+    const loading = document.getElementById('aistudioKeysLoading');
+    if (loading) loading.style.display = 'block';
+    try {
+        const data = await aistudioApi('/keys');
+        renderAistudioKeys(data);
+    } catch (error) {
+        showAistudioMessage('加载 AI Studio Key 失败：' + error.message, 'error');
+    } finally {
+        if (loading) loading.style.display = 'none';
+    }
+}
+
+async function addAistudioKeys() {
+    const input = document.getElementById('aistudioKeysInput');
+    const labelInput = document.getElementById('aistudioLabelInput');
+    const verifyBox = document.getElementById('aistudioVerifyCheckbox');
+    const btn = document.getElementById('aistudioAddBtn');
+    const text = input ? input.value : '';
+    if (!text.trim()) { showAistudioMessage('请先粘贴至少一个 API Key', 'error'); return; }
+    const verify = verifyBox ? verifyBox.checked : true;
+
+    if (btn) { btn.disabled = true; btn.textContent = verify ? '验证中...' : '添加中...'; }
+    try {
+        const data = await aistudioApi('/keys', {
+            method: 'POST',
+            body: JSON.stringify({ keys: text, label: labelInput ? labelInput.value : '', verify: verify })
+        });
+        if (input) input.value = '';
+        if (labelInput) labelInput.value = '';
+        renderAistudioKeys(data);
+
+        const tested = data.tested || [];
+        const okCount = tested.filter(function (t) { return t.ok; }).length;
+        const badCount = tested.length - okCount;
+        let message = '已添加 ' + (data.added || []).length + ' 个 Key';
+        if ((data.skipped || []).length) message += '，跳过 ' + data.skipped.length + ' 个（无效或重复）';
+        if (verify) message += '；验证通过 ' + okCount + ' 个，失败 ' + badCount + ' 个';
+        showAistudioMessage(message, badCount ? 'warning' : 'success');
+    } catch (error) {
+        showAistudioMessage('添加失败：' + error.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '添加'; }
+    }
+}
+
+async function toggleAistudioKey(id, enabled) {
+    try {
+        const data = await aistudioApi('/keys/' + id + '/toggle', {
+            method: 'POST',
+            body: JSON.stringify({ enabled: enabled })
+        });
+        renderAistudioKeys(data);
+        showAistudioMessage(enabled ? '已启用该 Key' : '已禁用该 Key', 'success');
+    } catch (error) {
+        showAistudioMessage('操作失败：' + error.message, 'error');
+    }
+}
+
+async function deleteAistudioKey(id) {
+    if (!confirm('确定删除这个 AI Studio API Key？删除后无法恢复。')) return;
+    try {
+        const data = await aistudioApi('/keys/' + id, { method: 'DELETE' });
+        renderAistudioKeys(data);
+        showAistudioMessage('已删除', 'success');
+    } catch (error) {
+        showAistudioMessage('删除失败：' + error.message, 'error');
+    }
+}
+
+async function testAistudioKey(id) {
+    showAistudioMessage('正在验证 Key...', 'info');
+    try {
+        const data = await aistudioApi('/keys/' + id + '/test', { method: 'POST' });
+        renderAistudioKeys(data);
+        const result = data.test || {};
+        if (result.ok) {
+            showAistudioMessage('验证通过（' + result.latency + 's）', 'success');
+        } else {
+            showAistudioMessage('验证失败：' + (result.error || ('HTTP ' + result.status)), 'error');
+        }
+    } catch (error) {
+        showAistudioMessage('验证失败：' + error.message, 'error');
+    }
+}
+
+async function testAllAistudioKeys() {
+    showAistudioMessage('正在验证所有启用的 Key...', 'info');
+    try {
+        const data = await aistudioApi('/test-all', { method: 'POST' });
+        renderAistudioKeys(data);
+        const tested = data.tested || [];
+        const okCount = tested.filter(function (t) { return t.ok; }).length;
+        showAistudioMessage('验证完成：通过 ' + okCount + ' 个，失败 ' + (tested.length - okCount) + ' 个', okCount === tested.length ? 'success' : 'warning');
+    } catch (error) {
+        showAistudioMessage('验证失败：' + error.message, 'error');
+    }
 }
