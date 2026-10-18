@@ -14,6 +14,52 @@
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/su-kaka/gcli2api)
 ---
 
+## 🆕 AI Studio（API Key）上游
+
+本仓库在原项目（GeminiCLI OAuth / Antigravity）之外，新增 **Google AI Studio（`generativelanguage.googleapis.com`）API Key** 上游，并为其模型提供**流式抗截断**与**假流式**能力。
+
+> 说明：AI Studio 路由注册在根路径上，会优先匹配 `/v1beta/*`、`/v1/*`；原 GeminiCLI 上游仍通过 `/antigravity/*` 前缀访问。若想恢复根路径给 GeminiCLI，调整 `web.py` 中 `include_router` 的顺序即可。
+
+### 环境变量
+
+```bash
+# 必填：Google AI Studio API Key（https://aistudio.google.com/apikey）
+AISTUDIO_API_KEY=your_google_ai_studio_key
+
+# 可选：API 基础地址
+AISTUDIO_BASE_URL=https://generativelanguage.googleapis.com
+
+# 可选：对外暴露的基础模型（模型列表会显示为 抗截断-<模型>）
+AISTUDIO_MODEL=gemini-3.5-flash-lite
+
+# 可选：首帧返回前的失败重试次数
+AISTUDIO_MAX_RETRIES=2
+```
+
+### 模型与功能前缀
+
+模型列表只返回 `抗截断-gemini-3.5-flash-lite`（由 `AISTUDIO_MODEL` 决定）。请求时可用以下前缀切换能力：
+
+| 写法 | 功能 |
+| --- | --- |
+| `抗截断-gemini-3.5-flash-lite` / `抗截断/gemini-3.5-flash-lite` | 流式抗截断（注入 `emit_answer` 合成工具，回答被截断时自动续写；仅流式生效） |
+| `假流式-gemini-3.5-flash-lite` / `假流式/gemini-3.5-flash-lite` | 假流式（先取完整非流式响应，再切成 SSE 分片推送） |
+| `gemini-3.5-flash-lite` | 原生流式透传 |
+
+> AI Studio 不接受以 model turn 结尾的请求（`Requests ending with a model turn are not supported`），因此抗截断使用「续写提示」模式而非 prefill 模式。
+
+### 端点
+
+与 GeminiCLI 完全一致，客户端无需区分上游：
+
+- Gemini：`POST /v1beta/models/{model}:generateContent`、`:streamGenerateContent`、`:countTokens`
+- OpenAI：`POST /v1/chat/completions`
+- Claude：`POST /v1/messages`
+
+客户端鉴权仍使用 `API_PASSWORD`（支持 `?key=`、`x-goog-api-key`、`x-api-key`、`Authorization: Bearer`）。
+
+---
+
 ## 安装指南
 
 ### Termux 环境

@@ -31,6 +31,12 @@ DEFAULT_SAFETY_SETTINGS = [
 MAX_OUTPUT_TOKENS = 64000
 TOP_K = 64
 
+# AI Studio（公开 v1beta）不接受 CodeAssist 私有的 HARM_CATEGORY_IMAGE_* 枚举，
+# 其余 6 个公共类目（含 JAILBREAK）均可使用。
+AISTUDIO_SAFETY_SETTINGS = [
+    item for item in DEFAULT_SAFETY_SETTINGS if "_IMAGE_" not in item["category"]
+]
+
 # ==================== 每个模型的独立配置 ====================
 
 @dataclass(frozen=True)
@@ -353,21 +359,33 @@ async def normalize_gemini_request(
     result["model"] = base_model
 
     # ========== 公共处理 ==========
-    generation_config.pop("presencePenalty", None)
-    generation_config.pop("frequencyPenalty", None)
-    generation_config.pop("stopSequences", None)
+    # AI Studio 原生支持这些采样参数，保留调用方传入的值；
+    # CodeAssist 渠道则按 CLI 行为剥离。
+    if mode != "aistudio":
+        generation_config.pop("presencePenalty", None)
+        generation_config.pop("frequencyPenalty", None)
+        generation_config.pop("stopSequences", None)
 
-    result["safetySettings"] = DEFAULT_SAFETY_SETTINGS
+    result["safetySettings"] = (
+        AISTUDIO_SAFETY_SETTINGS if mode == "aistudio" else DEFAULT_SAFETY_SETTINGS
+    )
 
     if generation_config:
-        generation_config["maxOutputTokens"] = MAX_OUTPUT_TOKENS
-        generation_config["topK"] = TOP_K
+        if mode == "aistudio":
+            # 尊重调用方的显式设置，仅在缺省时补齐
+            generation_config.setdefault("maxOutputTokens", MAX_OUTPUT_TOKENS)
+            generation_config.setdefault("topK", TOP_K)
+        else:
+            generation_config["maxOutputTokens"] = MAX_OUTPUT_TOKENS
+            generation_config["topK"] = TOP_K
         result["generationConfig"] = generation_config
 
     # contents: 先清理, 再处理预填充 (清理后可能产生新的末尾 model 消息)
     if "contents" in result:
         contents = _clean_contents(result["contents"])
-        if profile and profile.no_prefill:
+        # AI Studio 全系不支持以 model 消息结尾的请求
+        # （400: Requests ending with a model turn are not supported.）
+        if mode == "aistudio" or (profile and profile.no_prefill):
             contents, removed = _strip_trailing_model_turns(contents)
             if removed:
                 log.warning(f"[GEMINI_FIX] {base_model} 不支持预填充，移除了 {removed} 条末尾 model 消息")

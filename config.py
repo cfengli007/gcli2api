@@ -30,6 +30,9 @@ ENV_MAPPINGS = {
     "RESOURCE_MANAGER_API_URL": "resource_manager_api_url",
     "SERVICE_USAGE_API_URL": "service_usage_api_url",
     "ANTIGRAVITY_API_URL": "antigravity_api_url",
+    "AISTUDIO_API_KEY": "aistudio_api_key",
+    "AISTUDIO_BASE_URL": "aistudio_base_url",
+    "AISTUDIO_MAX_RETRIES": "aistudio_max_retries",
     "AUTO_BAN": "auto_ban_enabled",
     "AUTO_BAN_ERROR_CODES": "auto_ban_error_codes",
     "RETRY_429_MAX_RETRIES": "retry_429_max_retries",
@@ -460,6 +463,48 @@ async def get_antigravity_api_url() -> str:
             "ANTIGRAVITY_API_URL",
         )
     )
+
+
+async def get_aistudio_api_key() -> str:
+    """
+    Get the AI Studio (Gemini API) key.
+
+    Environment variable: AISTUDIO_API_KEY
+    Database config key: aistudio_api_key
+    Default: "" (not configured)
+    """
+    return str(await get_config_value("aistudio_api_key", "", "AISTUDIO_API_KEY"))
+
+
+async def get_aistudio_base_url() -> str:
+    """
+    Get the AI Studio base URL.
+
+    Environment variable: AISTUDIO_BASE_URL
+    Database config key: aistudio_base_url
+    Default: https://generativelanguage.googleapis.com
+    """
+    return str(
+        await get_config_value(
+            "aistudio_base_url",
+            "https://generativelanguage.googleapis.com",
+            "AISTUDIO_BASE_URL",
+        )
+    )
+
+
+async def get_aistudio_max_retries() -> int:
+    """
+    Get max retries for AI Studio upstream requests.
+
+    Environment variable: AISTUDIO_MAX_RETRIES
+    Database config key: aistudio_max_retries
+    Default: 2
+    """
+    try:
+        return int(await get_config_value("aistudio_max_retries", 2, "AISTUDIO_MAX_RETRIES"))
+    except (TypeError, ValueError):
+        return 2
 
 
 async def get_keepalive_url() -> str:

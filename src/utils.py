@@ -64,20 +64,25 @@ BASE_MODELS = [
 
 # ====================== Model Helper Functions ======================
 
+# 功能前缀（同时兼容 "假流式/" 与 "假流式-" 两种写法）
+FAKE_STREAMING_PREFIXES = ("假流式/", "假流式-")
+ANTI_TRUNCATION_PREFIXES = ("抗截断/", "抗截断-", "流式抗截断/", "流式抗截断-")
+
+
 def is_fake_streaming_model(model_name: str) -> bool:
     """Check if model name indicates fake streaming should be used."""
-    return model_name.startswith("假流式/")
+    return model_name.startswith(FAKE_STREAMING_PREFIXES)
 
 
 def is_anti_truncation_model(model_name: str) -> bool:
     """Check if model name indicates anti-truncation should be used."""
-    return model_name.startswith("抗截断/")
+    return model_name.startswith(ANTI_TRUNCATION_PREFIXES)
 
 
 def get_base_model_from_feature_model(model_name: str) -> str:
     """Get base model name from feature model name."""
     # Remove feature prefixes
-    for prefix in ["假流式/", "抗截断/", "流式抗截断/"]:
+    for prefix in FAKE_STREAMING_PREFIXES + ANTI_TRUNCATION_PREFIXES:
         if model_name.startswith(prefix):
             return model_name[len(prefix) :]
     return model_name

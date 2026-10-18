@@ -24,6 +24,10 @@ from src.router.antigravity.openai import router as antigravity_openai_router
 from src.router.antigravity.gemini import router as antigravity_gemini_router
 from src.router.antigravity.anthropic import router as antigravity_anthropic_router
 from src.router.antigravity.model_list import router as antigravity_model_list_router
+from src.router.aistudio.openai import router as aistudio_openai_router
+from src.router.aistudio.gemini import router as aistudio_gemini_router
+from src.router.aistudio.anthropic import router as aistudio_anthropic_router
+from src.router.aistudio.model_list import router as aistudio_model_list_router
 from src.router.geminicli.openai import router as geminicli_openai_router
 from src.router.geminicli.gemini import router as geminicli_gemini_router
 from src.router.geminicli.anthropic import router as geminicli_anthropic_router
@@ -193,6 +197,13 @@ app.add_middleware(
 )
 
 # 挂载路由器
+# AI Studio 路由必须先注册：同路径下 Starlette 按注册顺序取第一个匹配，
+# 这样 /v1/* 由 AI Studio 上游提供，而不是 GeminiCLI。
+app.include_router(aistudio_openai_router, prefix="", tags=["AI Studio OpenAI API"])
+app.include_router(aistudio_gemini_router, prefix="", tags=["AI Studio Gemini API"])
+app.include_router(aistudio_model_list_router, prefix="", tags=["AI Studio Model List"])
+app.include_router(aistudio_anthropic_router, prefix="", tags=["AI Studio Anthropic Messages"])
+
 # OpenAI兼容路由 - 处理OpenAI格式请求
 app.include_router(geminicli_openai_router, prefix="", tags=["Geminicli OpenAI API"])
 
