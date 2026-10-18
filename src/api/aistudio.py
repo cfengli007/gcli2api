@@ -8,9 +8,8 @@ AI Studio API - Gemini API Key upstream
   * 输出统一重组为完整 SSE 帧（"data: {json}\n\n"），
     这样路由层（含抗截断处理器）既能逐帧解析，也不会出现多个 chunk 粘连
 
-Key 来源：
-  1. 面板管理的 key 池（src/aistudio_keys.py，优先）
-  2. 环境变量 AISTUDIO_API_KEY（兜底）
+Key 来源：只使用面板管理的 key 池（src/aistudio_keys.py）。
+没有可用 key 时返回 503，不提供匿名/环境变量兜底服务。
 认证失败（401/403/API_KEY_INVALID）时自动标记并切换到下一个 key。
 """
 
@@ -22,7 +21,7 @@ from urllib.parse import quote
 import httpx
 from fastapi import Response
 
-from config import get_aistudio_api_key, get_aistudio_base_url, get_aistudio_max_retries
+from config import get_aistudio_base_url, get_aistudio_max_retries
 from log import log
 from src import aistudio_keys
 
@@ -36,12 +35,12 @@ MAX_KEY_ATTEMPTS = 3
 
 
 async def _get_settings(exclude: Optional[Set[str]] = None) -> Tuple[str, str, Optional[str]]:
-    """返回 (key, base_url, key_id)。key_id 为 None 表示来自环境变量的兜底 key。"""
+    """返回 (key, base_url, key_id)。只使用面板管理的 key 池，没有可用 key 时返回空串。"""
     base = (await get_aistudio_base_url()).strip().rstrip("/")
     pooled = await aistudio_keys.get_active_key(exclude=exclude)
     if pooled:
         return (pooled.get("key") or "").strip(), base, pooled.get("id")
-    return (await get_aistudio_api_key()).strip(), base, None
+    return "", base, None
 
 
 def _build_headers(api_key: str, extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
@@ -148,8 +147,8 @@ async def stream_request(body: Dict[str, Any], native: bool = False, headers: Op
 
         if not key:
             yield _error_response(
-                500,
-                {"error": {"code": 500, "message": "AISTUDIO_API_KEY 未配置（面板或环境变量）", "status": "FAILED_PRECONDITION"}},
+                503,
+                {"error": {"code": 503, "message": "未配置 AI Studio API Key，请在控制面板的 AI Studio 标签页添加", "status": "SERVICE_UNAVAILABLE"}},
             )
             return
 
@@ -255,8 +254,8 @@ async def non_stream_request(body: Dict[str, Any], headers: Optional[Dict[str, s
 
         if not key:
             return _error_response(
-                500,
-                {"error": {"code": 500, "message": "AISTUDIO_API_KEY 未配置（面板或环境变量）", "status": "FAILED_PRECONDITION"}},
+                503,
+                {"error": {"code": 503, "message": "未配置 AI Studio API Key，请在控制面板的 AI Studio 标签页添加", "status": "SERVICE_UNAVAILABLE"}},
             )
 
         url = f"{base}/v1beta/models/{quote(model, safe='')}:generateContent"

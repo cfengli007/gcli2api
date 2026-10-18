@@ -3197,11 +3197,9 @@ function renderAistudioKeys(data) {
 
     const envLine = document.getElementById('aistudioEnvKeyLine');
     if (envLine) {
-        if (data.env_key) {
-            envLine.innerHTML = '环境变量兜底 Key：<code>' + escapeHtml(data.env_key.masked) + '</code>（面板中没有可用 Key 时使用）';
-        } else {
-            envLine.textContent = '环境变量 AISTUDIO_API_KEY 未配置';
-        }
+        envLine.textContent = data.configured
+            ? 'Key 全部来自本面板；认证失败会自动切换，全部不可用时接口返回 503。'
+            : '当前没有启用的 Key，接口会返回 503，请在下方添加。';
     }
 
     const list = document.getElementById('aistudioKeysList');

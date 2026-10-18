@@ -12,7 +12,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from config import get_aistudio_api_key, get_aistudio_base_url
+from config import get_aistudio_base_url
 from log import log
 from src import aistudio_keys
 from src.utils import verify_panel_token
@@ -27,11 +27,10 @@ def _current_model() -> str:
 async def _snapshot() -> Dict[str, Any]:
     items = await aistudio_keys.list_keys()
     stats = await aistudio_keys.get_stats()
-    env_key = (await get_aistudio_api_key()).strip()
     return {
         "items": items,
         "stats": stats,
-        "env_key": {"masked": aistudio_keys.mask_key(env_key)} if env_key else None,
+        "configured": stats["enabled"] > 0,
         "base_url": (await get_aistudio_base_url()).strip().rstrip("/"),
         "model": _current_model(),
     }

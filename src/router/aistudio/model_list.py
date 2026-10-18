@@ -8,6 +8,7 @@ AI Studio Model List Router - 只暴露 AI Studio 上游的模型
 
 import os
 import sys
+from typing import List
 from pathlib import Path
 
 # 添加项目根目录到Python路径
@@ -35,15 +36,16 @@ def _aistudio_model() -> str:
     return os.getenv("AISTUDIO_MODEL", "gemini-3.5-flash-lite").strip() or "gemini-3.5-flash-lite"
 
 
-def _feature_model() -> str:
-    """对外暴露的唯一模型名（功能前缀 + 基础模型）"""
-    return f"抗截断-{_aistudio_model()}"
+def _feature_models() -> List[str]:
+    """对外暴露的模型名（功能前缀 + 基础模型）"""
+    base = _aistudio_model()
+    return [f"抗截断-{base}", f"假流式-{base}"]
 
 
 @router.get("/v1beta/models")
 async def list_gemini_models(token: str = Depends(authenticate_flexible)):
     """返回 Gemini 格式的模型列表（仅 AI Studio 模型）"""
-    models = [_feature_model()]
+    models = _feature_models()
     log.info(f"[AISTUDIO MODEL LIST] 返回 Gemini 格式: {models}")
     return JSONResponse(
         content=create_gemini_model_list(

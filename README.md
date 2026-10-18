@@ -22,14 +22,13 @@
 
 ### 环境变量
 
-```bash
-# 必填：Google AI Studio API Key（https://aistudio.google.com/apikey）
-AISTUDIO_API_KEY=your_google_ai_studio_key
+API Key **只能在控制面板的「AI Studio」标签页添加**，不读取环境变量兜底；没有任何启用的 Key 时，接口直接返回 `503 SERVICE_UNAVAILABLE`。
 
+```bash
 # 可选：API 基础地址
 AISTUDIO_BASE_URL=https://generativelanguage.googleapis.com
 
-# 可选：对外暴露的基础模型（模型列表会显示为 抗截断-<模型>）
+# 可选：对外暴露的基础模型（模型列表会显示为 抗截断-<模型> / 假流式-<模型>）
 AISTUDIO_MODEL=gemini-3.5-flash-lite
 
 # 可选：首帧返回前的失败重试次数
@@ -38,7 +37,7 @@ AISTUDIO_MAX_RETRIES=2
 
 ### 模型与功能前缀
 
-模型列表只返回 `抗截断-gemini-3.5-flash-lite`（由 `AISTUDIO_MODEL` 决定）。请求时可用以下前缀切换能力：
+模型列表返回两个模型：`抗截断-gemini-3.5-flash-lite` 与 `假流式-gemini-3.5-flash-lite`（由 `AISTUDIO_MODEL` 决定）。请求时可用以下前缀切换能力：
 
 | 写法 | 功能 |
 | --- | --- |
@@ -56,7 +55,7 @@ AISTUDIO_MAX_RETRIES=2
 - **测试 / 测试全部**：单独或批量验证 Key 是否可用，显示耗时与错误信息
 - **启用 / 禁用 / 删除**：运行时只会从启用的 Key 中挑选
 
-Key 保存在服务端 `creds/aistudio_keys.json`（权限 0600，仅返回打码值），面板管理的 Key 优先于环境变量 `AISTUDIO_API_KEY`；某个 Key 返回 401/403/`API_KEY_INVALID` 时会自动标记异常并切换到下一个，最多尝试 3 个。
+Key 保存在服务端 `creds/aistudio_keys.json`（权限 0600，仅返回打码值），运行时只使用这里启用的 Key；某个 Key 返回 401/403/`API_KEY_INVALID` 时会自动标记异常并切换到下一个，最多尝试 3 个。没有任何可用 Key 时接口返回 `503`，不提供服务。
 
 ### 端点
 
