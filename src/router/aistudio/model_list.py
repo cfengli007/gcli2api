@@ -58,7 +58,7 @@ async def list_gemini_models(token: str = Depends(authenticate_flexible)):
 @router.get("/v1/models")
 async def list_openai_models(token: str = Depends(authenticate_flexible)):
     """返回 OpenAI 格式的模型列表（仅 AI Studio 模型）"""
-    models = [_feature_model()]
+    models = _feature_models()
     log.info(f"[AISTUDIO MODEL LIST] 返回 OpenAI 格式: {models}")
     model_list = create_openai_model_list(models, owned_by="google")
     return JSONResponse(
