@@ -1,6 +1,6 @@
 """
 AI Studio Model List Router - Handles model list requests
-AI Studio 模型列表路由 - 只暴露 AISTUDIO_MODEL（逗号分隔多模型）及其抗截断/假流式功能前缀
+AI Studio 模型列表路由 - 统一暴露 AI Studio（AISTUDIO_MODEL，抗截断/假流式变体）与 Antigravity（抗截断变体）模型
 """
 
 import sys
@@ -83,7 +83,14 @@ async def get_aistudio_models_with_features():
 
 async def get_antigravity_models_with_prefix():
     """
-    返回 Antigravity 模型列表（带 agy- 上游前缀）。
+    返回 Antigravity 模型列表（带 agy- 上游前缀）及其抗截断变体。
+
+    每个上游基础模型展开为：
+      * agy-抗截断-<id>   流式抗截断（emit_answer 合成工具 + 续写）
+      * agy-<id>          原生流式（含上游自带的抗截断相关处理）
+
+    Antigravity 侧不提供「假流式」变体：上游 2.0 已移除该实现，
+    这里与其保持一致，只在这一侧开放抗截断。
 
     上游动态目录获取失败时返回空列表（不影响 AI Studio 部分展示）。
     """
@@ -94,11 +101,14 @@ async def get_antigravity_models_with_prefix():
         return []
     if not base_models_data:
         return []
-    return [
-        f"{ANTIGRAVITY_PROVIDER_PREFIX}{m['id']}"
-        for m in base_models_data
-        if "id" in m
-    ]
+    models = []
+    for m in base_models_data:
+        model_id = m.get("id")
+        if not model_id:
+            continue
+        models.append(f"{ANTIGRAVITY_PROVIDER_PREFIX}抗截断-{model_id}")
+        models.append(f"{ANTIGRAVITY_PROVIDER_PREFIX}{model_id}")
+    return models
 
 
 # ==================== API 路由 ====================
