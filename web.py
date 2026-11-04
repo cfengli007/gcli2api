@@ -17,6 +17,10 @@ from log import log
 # credential_manager 已重构为无状态函数模块（无需初始化/关闭）
 
 # Import all routers
+from src.router.aistudio.openai import router as aistudio_openai_router
+from src.router.aistudio.gemini import router as aistudio_gemini_router
+from src.router.aistudio.anthropic import router as aistudio_anthropic_router
+from src.router.aistudio.model_list import router as aistudio_model_list_router
 from src.router.antigravity.openai import router as antigravity_openai_router
 from src.router.antigravity.gemini import router as antigravity_gemini_router
 from src.router.antigravity.anthropic import router as antigravity_anthropic_router
@@ -183,6 +187,13 @@ if path_prefix:
     log.info(f"已启用路径前缀剥离: {path_prefix}")
 
 # 挂载路由器
+# AI Studio路由 - 必须先于 Antigravity 注册：两者共用 /v1/* 路径，
+# Starlette 按注册顺序匹配，注册在前者优先命中（Gemini API Key 上游）
+app.include_router(aistudio_openai_router, prefix="", tags=["AI Studio OpenAI API"])
+app.include_router(aistudio_gemini_router, prefix="", tags=["AI Studio Gemini API"])
+app.include_router(aistudio_model_list_router, prefix="", tags=["AI Studio Model List"])
+app.include_router(aistudio_anthropic_router, prefix="", tags=["AI Studio Anthropic Messages"])
+
 # Antigravity路由 - 处理OpenAI格式请求并转换为Antigravity API
 app.include_router(antigravity_openai_router, prefix="", tags=["Antigravity OpenAI API"])
 

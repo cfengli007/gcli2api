@@ -49,6 +49,9 @@ ENV_MAPPINGS = {
     "REQUEST_LOG_ENABLED": "request_log_enabled",
     "REQUEST_LOG_ERROR_CODES": "request_log_error_codes",
     "CREDENTIAL_SELECT_MODE": "credential_select_mode",
+    "AISTUDIO_BASE_URL": "aistudio_base_url",
+    "AISTUDIO_MODEL": "aistudio_model",
+    "AISTUDIO_MAX_RETRIES": "aistudio_max_retries",
     "HOST": "host",
     "PORT": "port",
     "API_PASSWORD": "api_password",
@@ -789,3 +792,61 @@ async def get_antigravity_api_url() -> str:
             "ANTIGRAVITY_API_URL",
         )
     )
+
+
+# ====================== AI Studio（API Key 上游） ======================
+
+async def get_aistudio_base_url() -> str:
+    """
+    Get Gemini AI Studio API base URL.
+
+    用于 generativelanguage.googleapis.com（API Key 上游）。
+
+    Environment variable: AISTUDIO_BASE_URL
+    Database config key: aistudio_base_url
+    Default: https://generativelanguage.googleapis.com
+    """
+    return str(
+        await get_config_value(
+            "aistudio_base_url",
+            "https://generativelanguage.googleapis.com",
+            "AISTUDIO_BASE_URL",
+        )
+    )
+
+
+async def get_aistudio_model() -> str:
+    """
+    Get the single upstream model exposed by the AI Studio provider.
+
+    Environment variable: AISTUDIO_MODEL
+    Database config key: aistudio_model
+    Default: gemini-3.5-flash-lite
+    """
+    return str(
+        await get_config_value(
+            "aistudio_model",
+            "gemini-3.5-flash-lite",
+            "AISTUDIO_MODEL",
+        )
+    )
+
+
+async def get_aistudio_max_retries() -> int:
+    """
+    Get retry count for AI Studio upstream requests.
+
+    Environment variable: AISTUDIO_MAX_RETRIES
+    Database config key: aistudio_max_retries
+    Default: 2
+    """
+    try:
+        return int(
+            await get_config_value(
+                "aistudio_max_retries",
+                2,
+                "AISTUDIO_MAX_RETRIES",
+            )
+        )
+    except Exception:
+        return 2

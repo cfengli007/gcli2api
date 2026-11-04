@@ -71,20 +71,38 @@ CALLBACK_HOST = "localhost"
 
 # ====================== Model Helper Functions ======================
 
-# 抗截断模型前缀
-_ANTI_TRUNCATION_PREFIX = "抗截断-"
+# 抗截断模型前缀（同时兼容 "抗截断-" 与 "抗截断/" 两种写法）
+ANTI_TRUNCATION_PREFIXES = ("抗截断-", "抗截断/", "流式抗截断-", "流式抗截断/")
+
+# 假流式模型前缀（同时兼容 "假流式-" 与 "假流式/" 两种写法）
+FAKE_STREAMING_PREFIXES = ("假流式-", "假流式/")
+
+# 所有功能前缀（用于剥离出基础模型名）
+FEATURE_MODEL_PREFIXES = FAKE_STREAMING_PREFIXES + ANTI_TRUNCATION_PREFIXES
 
 
 def is_anti_truncation_model(model_name: str) -> bool:
     """Check if model name indicates anti-truncation should be used."""
-    return model_name.startswith(_ANTI_TRUNCATION_PREFIX)
+    return (model_name or "").startswith(ANTI_TRUNCATION_PREFIXES)
+
+
+def is_fake_streaming_model(model_name: str) -> bool:
+    """Check if model name indicates fake-streaming should be used."""
+    return (model_name or "").startswith(FAKE_STREAMING_PREFIXES)
 
 
 def get_base_model_from_feature_model(model_name: str) -> str:
-    """Get base model name from feature model name."""
-    if model_name.startswith(_ANTI_TRUNCATION_PREFIX):
-        return model_name[len(_ANTI_TRUNCATION_PREFIX) :]
-    return model_name
+    """Get base model name from feature model name (strips every feature prefix)."""
+    name = model_name or ""
+    stripped = True
+    while stripped:
+        stripped = False
+        for prefix in FEATURE_MODEL_PREFIXES:
+            if name.startswith(prefix):
+                name = name[len(prefix):]
+                stripped = True
+                break
+    return name
 
 
 # ====================== Authentication Functions ======================

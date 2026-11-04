@@ -6,12 +6,14 @@ import {
     Upload,
     Info,
     BarChart3,
+    Sparkles,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import api from "./api";
 import Login from "./pages/Login";
 import OAuth from "./pages/OAuth";
 import Credentials from "./pages/Credentials";
+import Aistudio from "./pages/Aistudio";
 import UploadPage from "./pages/Upload";
 import Config from "./pages/Config";
 import About from "./pages/About";
@@ -51,6 +53,7 @@ export default function App() {
   const tabs = [
     { id: "oauth", label: "OAuth 认证", icon: Rocket },
     { id: "credentials", label: "凭证管理", icon: KeyRound },
+    { id: "aistudio", label: "AI Studio", icon: Sparkles },
     { id: "upload", label: "批量导入", icon: Upload },
     { id: "usage-logs", label: "请求日志", icon: BarChart3 },
     { id: "config", label: "配置管理", icon: Settings },
@@ -106,6 +109,7 @@ export default function App() {
       <div className="max-w-6xl mx-auto px-4 py-6">
         {activeTab === "oauth" && <OAuth />}
         {activeTab === "credentials" && <Credentials />}
+        {activeTab === "aistudio" && <Aistudio />}
         {activeTab === "upload" && <UploadPage />}
         {activeTab === "usage-logs" && <UsageLogs />}
         {activeTab === "config" && <Config />}
