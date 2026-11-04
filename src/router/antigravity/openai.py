@@ -26,6 +26,7 @@ from log import log
 from src.utils import (
     get_base_model_from_feature_model,
     is_anti_truncation_model,
+    strip_provider_suffix,
     authenticate_bearer,
 )
 
@@ -88,7 +89,7 @@ async def chat_completions(
 
     # 处理模型名称和功能检测
     use_anti_truncation = is_anti_truncation_model(openai_request.model)
-    real_model = get_base_model_from_feature_model(openai_request.model)
+    real_model = strip_provider_suffix(get_base_model_from_feature_model(openai_request.model))
 
     # 获取流式标志
     is_streaming = openai_request.stream

@@ -26,6 +26,8 @@ from src.utils import (
     get_base_model_from_feature_model,
     is_anti_truncation_model,
     is_fake_streaming_model,
+    is_aistudio_model,
+    strip_provider_suffix,
     authenticate_bearer,
 )
 
@@ -89,10 +91,16 @@ async def messages(
         response = create_health_check_response(format="anthropic")
         return JSONResponse(content=response)
 
-    # 处理模型名称和功能检测
+    # 统一端点分流：非 -ais 模型交给 Antigravity 处理
+    if not is_aistudio_model(claude_request.model):
+        from src.router.antigravity.anthropic import messages as ag_messages
+
+        return await ag_messages(claude_request, request, _token)
+
+    # 处理模型名称和功能检测（剥离 -ais 后缀得到真实上游模型名）
     use_fake_streaming = is_fake_streaming_model(claude_request.model)
     use_anti_truncation = is_anti_truncation_model(claude_request.model)
-    real_model = get_base_model_from_feature_model(claude_request.model)
+    real_model = strip_provider_suffix(get_base_model_from_feature_model(claude_request.model))
 
     # 获取流式标志
     is_streaming = claude_request.stream

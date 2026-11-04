@@ -91,6 +91,27 @@ def is_fake_streaming_model(model_name: str) -> bool:
     return (model_name or "").startswith(FAKE_STREAMING_PREFIXES)
 
 
+# 上游提供者后缀：统一端点下用模型名后缀区分上游（AI Studio = -ais，Antigravity = -apy）
+AISTUDIO_PROVIDER_SUFFIX = "-ais"
+ANTIGRAVITY_PROVIDER_SUFFIX = "-apy"
+PROVIDER_SUFFIXES = (AISTUDIO_PROVIDER_SUFFIX, ANTIGRAVITY_PROVIDER_SUFFIX)
+
+
+def is_aistudio_model(model_name: str) -> bool:
+    """Check if the model targets the AI Studio upstream (base name ends with -ais)."""
+    base = get_base_model_from_feature_model(model_name or "")
+    return base.endswith(AISTUDIO_PROVIDER_SUFFIX)
+
+
+def strip_provider_suffix(model_name: str) -> str:
+    """Strip a trailing provider suffix (-ais / -apy) from the base model name."""
+    name = model_name or ""
+    for suffix in PROVIDER_SUFFIXES:
+        if name.endswith(suffix):
+            return name[: -len(suffix)]
+    return name
+
+
 def get_base_model_from_feature_model(model_name: str) -> str:
     """Get base model name from feature model name (strips every feature prefix)."""
     name = model_name or ""

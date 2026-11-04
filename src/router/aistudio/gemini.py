@@ -34,6 +34,8 @@ from src.utils import (
     get_base_model_from_feature_model,
     is_anti_truncation_model,
     is_fake_streaming_model,
+    is_aistudio_model,
+    strip_provider_suffix,
     authenticate_gemini_flexible,
 )
 
@@ -111,6 +113,12 @@ async def generate_content(
     """
     log.debug(f"[AISTUDIO] Non-streaming request for model: {model}")
 
+    # 统一端点分流：非 -ais 模型交给 Antigravity 处理
+    if not is_aistudio_model(model):
+        from src.router.antigravity.gemini import generate_content as ag_generate_content
+
+        return await ag_generate_content(gemini_request, request, model, api_key)
+
     # 转换为字典
     normalized_dict = model_to_dict(gemini_request)
 
@@ -119,10 +127,10 @@ async def generate_content(
         response = create_health_check_response(format="gemini")
         return JSONResponse(content=response)
 
-    # 处理模型名称和功能检测
+    # 处理模型名称和功能检测（剥离 -ais 后缀得到真实上游模型名）
     use_anti_truncation = is_anti_truncation_model(model)
     use_fake_streaming = is_fake_streaming_model(model)
-    real_model = get_base_model_from_feature_model(model)
+    real_model = strip_provider_suffix(get_base_model_from_feature_model(model))
 
     # 这些功能只在流式传输时有意义
     if use_anti_truncation:
@@ -172,13 +180,19 @@ async def stream_generate_content(
     """
     log.debug(f"[AISTUDIO] Streaming request for model: {model}")
 
+    # 统一端点分流：非 -ais 模型交给 Antigravity 处理
+    if not is_aistudio_model(model):
+        from src.router.antigravity.gemini import stream_generate_content as ag_stream
+
+        return await ag_stream(gemini_request, request, model, api_key)
+
     # 转换为字典
     normalized_dict = model_to_dict(gemini_request)
 
-    # 处理模型名称和功能检测
+    # 处理模型名称和功能检测（剥离 -ais 后缀得到真实上游模型名）
     use_fake_streaming = is_fake_streaming_model(model)
     use_anti_truncation = is_anti_truncation_model(model)
-    real_model = get_base_model_from_feature_model(model)
+    real_model = strip_provider_suffix(get_base_model_from_feature_model(model))
 
     # 更新模型名为真实模型名
     normalized_dict["model"] = real_model
