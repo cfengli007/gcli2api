@@ -1,6 +1,6 @@
 """
 AI Studio Model List Router - Handles model list requests
-AI Studio 模型列表路由 - 只暴露 AISTUDIO_MODEL（逗号分隔多模型）及其功能/变体前缀
+AI Studio 模型列表路由 - 只暴露 AISTUDIO_MODEL（逗号分隔多模型）及其抗截断/假流式功能前缀
 """
 
 import sys
@@ -60,24 +60,15 @@ async def get_aistudio_base_models() -> list:
     return bases or ["gemini-3.5-flash-lite"]
 
 
-# thinking 级别变体后缀 → thinkingConfig.thinkingLevel（Gemini 3+ 系列）
-THINKING_VARIANT_SUFFIXES = ("-high", "-low", "-minimal")
-
-
-def _expand_variants(base_model: str) -> list:
-    """为一个基础模型生成 thinking 变体名（-high / -low / -minimal）。"""
-    return [f"{base_model}{suffix}" for suffix in THINKING_VARIANT_SUFFIXES]
-
-
 async def get_aistudio_models_with_features():
     """
     返回统一端点下的 AI Studio 模型列表（带 ais- 上游前缀）。
 
     AISTUDIO_MODEL 支持逗号分隔多个基础模型（默认
-    gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.1-flash-lite），变体：
-      * ais-抗截断-<model>[-high|-low|-minimal]   流式抗截断（emit_answer 合成工具 + 续写）
-      * ais-假流式-<model>                        非流式请求 + 分块回放
-      * ais-<model>[-high|-low|-minimal]          原生流式
+    gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.1-flash-lite），功能变体：
+      * ais-抗截断-<model>   流式抗截断（emit_answer 合成工具 + 续写）
+      * ais-假流式-<model>   非流式请求 + 分块回放
+      * ais-<model>          原生流式
     """
     bases = await get_aistudio_base_models()
     models = []
@@ -85,9 +76,6 @@ async def get_aistudio_models_with_features():
         models.append(f"{AISTUDIO_PROVIDER_PREFIX}抗截断-{base_model}")
         models.append(f"{AISTUDIO_PROVIDER_PREFIX}假流式-{base_model}")
         models.append(f"{AISTUDIO_PROVIDER_PREFIX}{base_model}")
-        for variant in _expand_variants(base_model):
-            models.append(f"{AISTUDIO_PROVIDER_PREFIX}抗截断-{variant}")
-            models.append(f"{AISTUDIO_PROVIDER_PREFIX}{variant}")
 
     log.info(f"[AISTUDIO MODEL LIST] 返回 {len(models)} 个模型: {', '.join(models)}")
     return models
