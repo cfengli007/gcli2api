@@ -41,6 +41,29 @@ AISTUDIO_SAFETY_SETTINGS = [
 MAX_OUTPUT_TOKENS = 64000
 TOP_K = 64
 
+# 模型名 thinking 级别变体后缀（如 gemini-3.8-flash-high）→ thinkingConfig.thinkingLevel
+THINKING_LEVEL_SUFFIXES = {
+    "-high": "HIGH",
+    "-medium": "MEDIUM",
+    "-low": "LOW",
+    "-minimal": "MINIMAL",
+}
+
+
+def split_thinking_variant(model: str) -> Tuple[str, Optional[str]]:
+    """
+    把模型名拆成 (真实模型名, thinking 级别)。
+
+    gemini-3.8-flash-high -> ("gemini-3.8-flash", "HIGH")
+    gemini-3.5-flash-lite -> ("gemini-3.5-flash-lite", None)（后缀不匹配时不拆）
+    """
+    if not model:
+        return model, None
+    for suffix, level in THINKING_LEVEL_SUFFIXES.items():
+        if model.endswith(suffix):
+            return model[: -len(suffix)], level
+    return model, None
+
 _SCHEMA_TYPE_ALIASES = {
     "string": "STRING",
     "number": "NUMBER",
@@ -300,11 +323,28 @@ async def normalize_aistudio_request(request: Dict[str, Any]) -> Dict[str, Any]:
     1. contents 清理 + 剥掉末尾 model 轮次（AI Studio 禁止 model 结尾）
     2. tools 规范化（functionDeclarations + Schema.type 大写）
     3. 公共参数（safetySettings 公开类目 / maxOutputTokens / topK 用 setdefault）
+   0.2 模型名 thinking 变体后缀（-high/-medium/-low/-minimal → thinkingLevel）
     """
     result = request.copy()
     model = result.get("model", "")
     generation_config = dict(result.get("generationConfig") or {})
     return_thoughts = await get_return_thoughts_to_frontend()
+
+    # ========== 0.2 thinking 级别变体后缀 ==========
+    # ais-gemini-3.8-flash-high 这类名字：剥掉后缀，映射为 thinkingConfig.thinkingLevel
+    thinking_level = None
+    if model:
+        base_model, thinking_level = split_thinking_variant(model)
+        if thinking_level:
+            model = base_model
+            result["model"] = model
+            thinking_config = dict(generation_config.get("thinkingConfig") or {})
+            thinking_config["thinkingLevel"] = thinking_level
+            generation_config["thinkingConfig"] = thinking_config
+            print(
+                f"[AISTUDIO] {model} 变体 thinkingLevel={thinking_level}",
+                flush=True,
+            )
 
     # ========== 0.5 模型名复写 ==========
     rewrite_rules = await _get_model_rewrite_rules()
@@ -353,6 +393,9 @@ async def normalize_aistudio_request(request: Dict[str, Any]) -> Dict[str, Any]:
         thinking_config = dict(thinking_config)
         thinking_config["includeThoughts"] = return_thoughts
         generation_config["thinkingConfig"] = thinking_config
+    elif thinking_level:
+        # 变体已设置 thinkingLevel 但客户端没传 thinkingConfig：补一个最小配置
+        generation_config["thinkingConfig"] = {"thinkingLevel": thinking_level}
 
     generation_config.setdefault("maxOutputTokens", MAX_OUTPUT_TOKENS)
     generation_config.setdefault("topK", TOP_K)

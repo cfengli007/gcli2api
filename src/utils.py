@@ -81,34 +81,81 @@ FAKE_STREAMING_PREFIXES = ("假流式-", "假流式/")
 FEATURE_MODEL_PREFIXES = FAKE_STREAMING_PREFIXES + ANTI_TRUNCATION_PREFIXES
 
 
+def _strip_provider_prefixes_only(name: str) -> str:
+    """只剥掉交错出现的提供者前缀（ais- / agy-），保留功能前缀。"""
+    changed = True
+    while changed:
+        changed = False
+        for prefix in PROVIDER_PREFIXES:
+            if name.startswith(prefix):
+                name = name[len(prefix):]
+                changed = True
+    return name
+
+
 def is_anti_truncation_model(model_name: str) -> bool:
-    """Check if model name indicates anti-truncation should be used."""
-    return (model_name or "").startswith(ANTI_TRUNCATION_PREFIXES)
+    """Check if model name indicates anti-truncation should be used (provider prefix tolerant)."""
+    name = model_name or ""
+    return name.startswith(ANTI_TRUNCATION_PREFIXES) or (
+        _strip_provider_prefixes_only(name).startswith(ANTI_TRUNCATION_PREFIXES)
+    )
 
 
 def is_fake_streaming_model(model_name: str) -> bool:
-    """Check if model name indicates fake-streaming should be used."""
-    return (model_name or "").startswith(FAKE_STREAMING_PREFIXES)
+    """Check if model name indicates fake-streaming should be used (provider prefix tolerant)."""
+    name = model_name or ""
+    return name.startswith(FAKE_STREAMING_PREFIXES) or (
+        _strip_provider_prefixes_only(name).startswith(FAKE_STREAMING_PREFIXES)
+    )
 
 
-# 上游提供者后缀：统一端点下用模型名后缀区分上游（AI Studio = -ais，Antigravity = -apy）
-AISTUDIO_PROVIDER_SUFFIX = "-ais"
-ANTIGRAVITY_PROVIDER_SUFFIX = "-apy"
-PROVIDER_SUFFIXES = (AISTUDIO_PROVIDER_SUFFIX, ANTIGRAVITY_PROVIDER_SUFFIX)
+# 上游提供者前缀：统一端点下用模型名前缀区分上游（AI Studio = ais-，Antigravity = agy-）
+AISTUDIO_PROVIDER_PREFIX = "ais-"
+ANTIGRAVITY_PROVIDER_PREFIX = "agy-"
+PROVIDER_PREFIXES = (AISTUDIO_PROVIDER_PREFIX, ANTIGRAVITY_PROVIDER_PREFIX)
+
+
+def get_provider_from_model(model_name: str) -> str:
+    """
+    从模型名中提取上游提供者："ais" / "agy"；没有提供者前缀时默认 "ais"。
+
+    提供者前缀可以在功能前缀（抗截断- / 假流式-）之前或之后：
+      ais-抗截断-gemini-3.8-flash / 抗截断-ais-gemini-3.8-flash 等价
+    """
+    name = model_name or ""
+    # 先剥功能前缀，再找提供者前缀（支持两种顺序）
+    base = get_base_model_from_feature_model(name)
+    if base.startswith(AISTUDIO_PROVIDER_PREFIX):
+        return "ais"
+    if base.startswith(ANTIGRAVITY_PROVIDER_PREFIX):
+        return "agy"
+    # 也检查原始名字开头（功能前缀在前的情况已在 base 中覆盖）
+    if name.startswith(AISTUDIO_PROVIDER_PREFIX):
+        return "ais"
+    if name.startswith(ANTIGRAVITY_PROVIDER_PREFIX):
+        return "agy"
+    return "ais"
 
 
 def is_aistudio_model(model_name: str) -> bool:
-    """Check if the model targets the AI Studio upstream (base name ends with -ais)."""
-    base = get_base_model_from_feature_model(model_name or "")
-    return base.endswith(AISTUDIO_PROVIDER_SUFFIX)
+    """Check if the model targets the AI Studio upstream (ais- prefix, or no provider prefix)."""
+    return get_provider_from_model(model_name) == "ais"
 
 
-def strip_provider_suffix(model_name: str) -> str:
-    """Strip a trailing provider suffix (-ais / -apy) from the base model name."""
+def strip_provider_prefix(model_name: str) -> str:
+    """
+    剥离模型名中的提供者前缀（ais- / agy-）与功能前缀（抗截断- / 假流式-），
+    返回真实上游模型名。两种前缀可以以任意顺序交错出现：
+      ais-抗截断-gemini-3.8-flash / 抗截断-ais-gemini-3.8-flash -> gemini-3.8-flash
+    """
     name = model_name or ""
-    for suffix in PROVIDER_SUFFIXES:
-        if name.endswith(suffix):
-            return name[: -len(suffix)]
+    changed = True
+    while changed:
+        changed = False
+        for prefix in PROVIDER_PREFIXES + FEATURE_MODEL_PREFIXES:
+            if name.startswith(prefix):
+                name = name[len(prefix):]
+                changed = True
     return name
 
 

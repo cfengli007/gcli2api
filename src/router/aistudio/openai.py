@@ -28,7 +28,7 @@ from src.utils import (
     is_anti_truncation_model,
     is_fake_streaming_model,
     is_aistudio_model,
-    strip_provider_suffix,
+    strip_provider_prefix,
     authenticate_bearer,
 )
 
@@ -89,16 +89,16 @@ async def chat_completions(
         response = create_health_check_response(format="openai")
         return JSONResponse(content=response)
 
-    # 统一端点分流：非 -ais 模型交给 Antigravity 处理
+    # 统一端点分流：非 ais 模型（agy- 前缀）交给 Antigravity 处理
     if not is_aistudio_model(openai_request.model):
         from src.router.antigravity.openai import chat_completions as ag_chat_completions
 
         return await ag_chat_completions(openai_request, request, token)
 
-    # 处理模型名称和功能检测（剥离 -ais 后缀得到真实上游模型名）
+    # 处理模型名称和功能检测（剥离 ais- 前缀得到真实上游模型名）
     use_fake_streaming = is_fake_streaming_model(openai_request.model)
     use_anti_truncation = is_anti_truncation_model(openai_request.model)
-    real_model = strip_provider_suffix(get_base_model_from_feature_model(openai_request.model))
+    real_model = strip_provider_prefix(get_base_model_from_feature_model(openai_request.model))
 
     # 获取流式标志
     is_streaming = openai_request.stream

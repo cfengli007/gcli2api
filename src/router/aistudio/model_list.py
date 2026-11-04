@@ -1,6 +1,6 @@
 """
 AI Studio Model List Router - Handles model list requests
-AI Studio 模型列表路由 - 只暴露当前 AISTUDIO_MODEL 及其功能前缀变体
+AI Studio 模型列表路由 - 只暴露 AISTUDIO_MODEL（逗号分隔多模型）及其功能/变体前缀
 """
 
 import sys
@@ -21,7 +21,7 @@ from log import log
 
 # 本地模块 - API（Antigravity 动态模型目录，用于统一模型列表）
 from src.api.antigravity import fetch_available_models
-from src.utils import ANTIGRAVITY_PROVIDER_SUFFIX, AISTUDIO_PROVIDER_SUFFIX
+from src.utils import ANTIGRAVITY_PROVIDER_PREFIX, AISTUDIO_PROVIDER_PREFIX
 
 # 本地模块 - 工具和认证
 from src.utils import (
@@ -41,32 +41,61 @@ router = APIRouter()
 
 # ==================== 辅助函数 ====================
 
+async def get_aistudio_base_models() -> list:
+    """
+    从配置读取 AI Studio 基础模型列表（AISTUDIO_MODEL 支持逗号分隔多个），
+    并剥掉误配置的 ais- / agy- 前缀（配置里只写裸模型名）。
+    """
+    raw = ((await get_aistudio_model()) or "gemini-3.5-flash-lite").strip()
+    bases = []
+    for item in raw.replace("，", ",").split(","):
+        name = item.strip()
+        if not name:
+            continue
+        for prefix in (AISTUDIO_PROVIDER_PREFIX, ANTIGRAVITY_PROVIDER_PREFIX):
+            if name.startswith(prefix):
+                name = name[len(prefix):]
+        if name and name not in bases:
+            bases.append(name)
+    return bases or ["gemini-3.5-flash-lite"]
+
+
+# thinking 级别变体后缀 → thinkingConfig.thinkingLevel（Gemini 3+ 系列）
+THINKING_VARIANT_SUFFIXES = ("-high", "-low", "-minimal")
+
+
+def _expand_variants(base_model: str) -> list:
+    """为一个基础模型生成 thinking 变体名（-high / -low / -minimal）。"""
+    return [f"{base_model}{suffix}" for suffix in THINKING_VARIANT_SUFFIXES]
+
+
 async def get_aistudio_models_with_features():
     """
-    返回统一端点下的 AI Studio 模型列表（带 -ais 上游后缀）。
+    返回统一端点下的 AI Studio 模型列表（带 ais- 上游前缀）。
 
-    代理只配置了一个上游模型（AISTUDIO_MODEL），变体：
-      * 抗截断-<model>-ais   流式抗截断（注入 emit_answer 合成工具 + 续写）
-      * 假流式-<model>-ais   非流式请求 + 分块回放
-      * <model>-ais          原生流式
+    AISTUDIO_MODEL 支持逗号分隔多个基础模型（默认
+    gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.1-flash-lite），变体：
+      * ais-抗截断-<model>[-high|-low|-minimal]   流式抗截断（emit_answer 合成工具 + 续写）
+      * ais-假流式-<model>                        非流式请求 + 分块回放
+      * ais-<model>[-high|-low|-minimal]          原生流式
     """
-    base_model = ((await get_aistudio_model()).strip() or "gemini-3.5-flash-lite")
-    if base_model.endswith(AISTUDIO_PROVIDER_SUFFIX):
-        base_model = base_model[: -len(AISTUDIO_PROVIDER_SUFFIX)]
-
-    models = [
-        f"抗截断-{base_model}{AISTUDIO_PROVIDER_SUFFIX}",
-        f"假流式-{base_model}{AISTUDIO_PROVIDER_SUFFIX}",
-        f"{base_model}{AISTUDIO_PROVIDER_SUFFIX}",
-    ]
+    bases = await get_aistudio_base_models()
+    models = []
+    for base_model in bases:
+        models.append(f"{AISTUDIO_PROVIDER_PREFIX}抗截断-{base_model}")
+        models.append(f"{AISTUDIO_PROVIDER_PREFIX}假流式-{base_model}")
+        models.append(f"{AISTUDIO_PROVIDER_PREFIX}{base_model}")
+        for variant in _expand_variants(base_model):
+            models.append(f"{AISTUDIO_PROVIDER_PREFIX}抗截断-{variant}")
+            models.append(f"{AISTUDIO_PROVIDER_PREFIX}{variant}")
 
     log.info(f"[AISTUDIO MODEL LIST] 返回 {len(models)} 个模型: {', '.join(models)}")
     return models
 
 
-async def get_antigravity_models_with_suffix():
+async def get_antigravity_models_with_prefix():
     """
-    返回 Antigravity 模型列表（带 -apy 上游后缀）。
+    返回 Antigravity 模型列表（带 agy- 上游前缀）。
 
     上游动态目录获取失败时返回空列表（不影响 AI Studio 部分展示）。
     """
@@ -78,7 +107,7 @@ async def get_antigravity_models_with_suffix():
     if not base_models_data:
         return []
     return [
-        f"{m['id']}{ANTIGRAVITY_PROVIDER_SUFFIX}"
+        f"{ANTIGRAVITY_PROVIDER_PREFIX}{m['id']}"
         for m in base_models_data
         if "id" in m
     ]
@@ -88,9 +117,9 @@ async def get_antigravity_models_with_suffix():
 
 @router.get("/v1beta/models")
 async def list_gemini_models(token: str = Depends(authenticate_flexible)):
-    """返回 Gemini 格式的统一模型列表（AI Studio -ais + Antigravity -apy）"""
+    """返回 Gemini 格式的统一模型列表（AI Studio ais- + Antigravity agy-）"""
     ais_models = await get_aistudio_models_with_features()
-    apy_models = await get_antigravity_models_with_suffix()
+    apy_models = await get_antigravity_models_with_prefix()
     models = ais_models + apy_models
     log.info(f"[AISTUDIO MODEL LIST] 统一模型列表 {len(models)} 个")
     return JSONResponse(content=create_gemini_model_list(
@@ -101,9 +130,9 @@ async def list_gemini_models(token: str = Depends(authenticate_flexible)):
 
 @router.get("/v1/models")
 async def list_openai_models(token: str = Depends(authenticate_flexible)):
-    """返回 OpenAI 格式的统一模型列表（AI Studio -ais + Antigravity -apy）"""
+    """返回 OpenAI 格式的统一模型列表（AI Studio ais- + Antigravity agy-）"""
     ais_models = await get_aistudio_models_with_features()
-    apy_models = await get_antigravity_models_with_suffix()
+    apy_models = await get_antigravity_models_with_prefix()
     models = ais_models + apy_models
     model_list = create_openai_model_list(models, owned_by="google")
     return JSONResponse(content={

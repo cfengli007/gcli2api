@@ -25,7 +25,7 @@ from log import log
 from src.utils import (
     get_base_model_from_feature_model,
     is_anti_truncation_model,
-    strip_provider_suffix,
+    strip_provider_prefix,
     authenticate_bearer,
 )
 
@@ -91,7 +91,7 @@ async def messages(
 
     # 处理模型名称和功能检测
     use_anti_truncation = is_anti_truncation_model(claude_request.model)
-    real_model = strip_provider_suffix(get_base_model_from_feature_model(claude_request.model))
+    real_model = strip_provider_prefix(get_base_model_from_feature_model(claude_request.model))
 
     # 获取流式标志
     is_streaming = claude_request.stream
