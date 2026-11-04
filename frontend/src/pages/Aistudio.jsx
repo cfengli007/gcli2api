@@ -20,7 +20,9 @@ const STATUS_STYLE = {
 function fmtTime(value) {
   if (!value) return "-";
   try {
-    return new Date(value).toLocaleString("zh-CN", { hour12: false });
+    // 后端存的是秒级 Unix 时间戳；小于 1e12 一律按秒处理，乘 1000 转毫秒
+    const ms = typeof value === "number" && value < 1e12 ? value * 1000 : Number(value) || 0;
+    return new Date(ms).toLocaleString("zh-CN", { hour12: false });
   } catch {
     return String(value);
   }
